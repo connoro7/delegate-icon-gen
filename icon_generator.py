@@ -6,6 +6,7 @@ custom 128x128 icons. The parent agent (Icon Creator) delegates to a specialist
 agent (Style Expert) to refine prompts before generating the final icon.
 """
 
+import argparse
 import asyncio
 import re
 from dataclasses import dataclass
@@ -143,8 +144,10 @@ async def generate_icon_image(ctx: RunContext[IconRequest], refined_prompt: str)
     # Create a safe filename
     safe_style = re.sub(r"[^\w\s-]", "", art_style).strip().replace(" ", "_")
     safe_desc = re.sub(r"[^\w\s-]", "", description)[:30].strip().replace(" ", "_")
-    filename = f"icon_{safe_style}_{safe_desc}.png"
-    filepath = Path.cwd() / filename
+    safe_timestamp = asyncio.get_event_loop().time()
+    filename = f"icon_{safe_style}_{safe_desc}_{safe_timestamp}.png"
+    output_dir = "output"
+    filepath = Path.cwd() / output_dir / filename
 
     # Save the image
     image.save(filepath, "PNG")
@@ -180,39 +183,51 @@ async def create_icon(
 
 
 async def main():
-    """Example usage of the icon generator."""
-    print("🎨 Multi-Agent Icon Generator (using Agent Delegation)\n")
+    """Generate custom icons using command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Generate custom icons using AI with multi-agent delegation"
+    )
+    parser.add_argument(
+        "--style",
+        type=str,
+        required=True,
+        help="Art style for the icon (e.g., 'minimalist', 'pixel art', 'slack emoji')",
+    )
+    parser.add_argument(
+        "--description",
+        type=str,
+        required=True,
+        help="Description of what the icon should depict",
+    )
+    parser.add_argument(
+        "--count",
+        type=int,
+        default=1,
+        help="Number of icons to generate (default: 1)",
+    )
 
-    # Initialize OpenAI client
+    args = parser.parse_args()
+
+    # Ensure output directory exists
+    output_dir = Path.cwd() / "output"
+    output_dir.mkdir(exist_ok=True)
+
     client = AsyncOpenAI()
 
-    print("=" * 60)
-    print("1. Minimalist coffee cup")
-    print("=" * 60)
-    result1 = await create_icon(
-        art_style="minimalist", description="a hot cup of coffee", openai_client=client
-    )
-    print(f"{result1}\n")
+    print(f"Generating {args.count} icon(s) in '{args.style}' style...")
+    print(f"Description: {args.description}\n")
 
-    print("=" * 60)
-    print("2. Pixel art rocket")
-    print("=" * 60)
-    result2 = await create_icon(
-        art_style="pixel art",
-        description="a retro rocket ship launching into space",
-        openai_client=client,
-    )
-    print(f"{result2}\n")
+    # Generate the requested number of icons
+    for i in range(args.count):
+        if args.count > 1:
+            print(f"[{i+1}/{args.count}] Starting icon generation...")
 
-    print("=" * 60)
-    print("3. Watercolor flower")
-    print("=" * 60)
-    result3 = await create_icon(
-        art_style="watercolor",
-        description="a blooming sunflower with a bee",
-        openai_client=client,
-    )
-    print(f"{result3}\n")
+        result = await create_icon(
+            art_style=args.style,
+            description=args.description,
+            openai_client=client,
+        )
+        print(f"{result}\n")
 
 
 if __name__ == "__main__":
