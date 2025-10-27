@@ -24,7 +24,7 @@ This application uses two agents in a delegation pattern:
 ## Usage
 
 ```bash
-python icon_generator.py --style "minimalist" --description "a dancing baby shark"
+python icon_generator.py --style "minimalist" --description "a dancing baby shark" --count 3
 ```
 
 ## Example Styles
