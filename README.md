@@ -6,55 +6,25 @@ A demonstration of pydantic-ai's **agent delegation pattern** for creating custo
 
 This application uses two agents in a delegation pattern:
 
-### <¨ Style Expert Agent (Delegate)
-- **Role**: Specialist in art styles and visual design
-- **Responsibility**: Refines user descriptions into detailed, style-specific prompts
-- **Model**: GPT-4o
-
-### =¼ Icon Creator Agent (Parent)
+### Icon Creator Agent (Parent)
 - **Role**: Orchestrator of the icon generation process
 - **Responsibility**: Delegates to Style Expert, then generates the final icon
 - **Model**: GPT-4o
 
-## Agent Delegation Pattern
+### Style Expert Agent (Delegate)
+- **Role**: Specialist in art styles and visual design
+- **Responsibility**: Refines user descriptions into detailed, style-specific prompts
+- **Model**: GPT-4o
 
-The implementation follows pydantic-ai's delegation pattern:
-
-```python
-# Parent agent delegates through a tool
-@icon_creator.tool
-async def consult_style_expert(ctx: RunContext[IconRequest]) -> str:
-    result = await style_expert.run(
-        'Please refine this icon prompt.',
-        deps=ctx.deps,      # Share dependencies
-        usage=ctx.usage,    # Track combined usage
-    )
-    return result.data
-```
-
-**Key features:**
-- Usage tracking across both agents (`usage=ctx.usage`)
-- Shared dependencies (`deps=ctx.deps`)
-- Parent maintains control and resumes after delegation
-- Tools as delegation mechanism
+### Image Generation (Tool)
+- **Role**: Image generation engine
+- **Responsibility**: Generates the actual icon image based on the refined prompt
+- **Model**: DALL-E-3
 
 ## Usage
 
 ```bash
-python icon_generator.py
-```
-
-### Programmatic Usage
-
-```python
-from icon_generator import create_icon
-
-# Create a minimalist icon
-result = await create_icon(
-    art_style="minimalist",
-    description="a steaming cup of coffee on a saucer"
-)
-print(result)
+python icon_generator.py --style "minimalist" --description "a dancing baby shark"
 ```
 
 ## Example Styles
@@ -62,47 +32,37 @@ print(result)
 - **minimalist**: Clean, simple designs with essential elements
 - **pixel art**: Retro, 8-bit inspired graphics
 - **watercolor**: Soft, flowing artistic style
-- **flat design**: Modern, 2D with solid colors
+- **flat**: Modern, 2D with solid colors
 - **isometric**: 3D perspective with geometric precision
 - **line art**: Simple outlines and contours
 - **gradient**: Smooth color transitions
+- **woodcut**: Textured, engraved appearance
+- **cartoon**: Exaggerated, playful designs
+- **sketch**: Hand-drawn, rough style
+- **vector**: Scalable graphics with clean lines
+- **surrealist**: Dream-like, abstract imagery
+- **cyberpunk**: Futuristic, neon-lit aesthetics
+- **steampunk**: Victorian-era mechanical designs
+- **gothic**: Dark, ornate style with intricate details
+- **pop art**: Bold, vibrant colors with a comic book feel
+- **art deco**: Geometric shapes with luxurious details
+- **impressionist**: Light and color-focused, with visible brush strokes
+- **cubist**: Abstract, fragmented forms and perspectives
+- **expressionist**: Emotional, distorted representations with vivid colors
+- **realistic**: Life-like, detailed imagery
+- **fantasy**: Magical, otherworldly themes and elements
+- **sci-fi**: Futuristic, space-themed designs
+- **vintage**: Nostalgic, old-fashioned aesthetics
+- **modern**: Sleek, contemporary designs with clean lines
 
-## Extending to Real Image Generation
-
-To generate actual images, integrate an image generation API:
-
-```python
-@icon_creator.tool
-async def generate_icon_concept(ctx: RunContext[IconRequest], refined_prompt: str) -> str:
-    # Option 1: OpenAI DALL-E
-    from openai import AsyncOpenAI
-    client = AsyncOpenAI()
-
-    response = await client.images.generate(
-        model="dall-e-3",
-        prompt=refined_prompt,
-        size="1024x1024",  # Then resize to 128x128
-        quality="standard",
-    )
-
-    # Save and resize image
-    image_url = response.data[0].url
-    # Download, resize to 128x128, save...
-
-    return f"Icon saved to: icon.png"
-```
 
 ## Dependencies
 
-```bash
-pip install pydantic-ai
-```
+This project is managed with `uv`. To install dependencies, run:
 
-For actual image generation, add:
 ```bash
-pip install openai pillow  # For DALL-E + image processing
-# OR
-pip install replicate pillow  # For Stable Diffusion
+uv sync
+. .venv/bin/activate
 ```
 
 ## How It Works
@@ -111,12 +71,5 @@ pip install replicate pillow  # For Stable Diffusion
 2. **Delegation**: Icon Creator delegates to Style Expert
 3. **Refinement**: Style Expert creates optimized prompt with style-specific details
 4. **Generation**: Icon Creator uses refined prompt to generate concept
-5. **Output**: Returns icon details (or actual image in production)
+5. **Output**: Returns icon details and outputs actual image to `output/icon.png`
 
-## Benefits of This Pattern
-
-- **Separation of Concerns**: Each agent has a specific expertise
-- **Reusability**: Style Expert can be used by other agents
-- **Resource Tracking**: Combined usage tracking across all agents
-- **Maintainability**: Easy to add new specialist agents
-- **Flexibility**: Can mix different models for different tasks

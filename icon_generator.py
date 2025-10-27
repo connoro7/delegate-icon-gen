@@ -28,8 +28,6 @@ class IconRequest:
     openai_client: AsyncOpenAI
 
 
-# Delegate Agent: Style Expert
-# Specializes in different art styles and creates optimized prompts
 style_expert = Agent(
     "openai:gpt-4o",
     system_prompt=(
@@ -54,7 +52,6 @@ async def refine_prompt(ctx: RunContext[IconRequest]) -> str:
     style = ctx.deps.art_style
     description = ctx.deps.description
 
-    # Style Expert creates an optimized prompt
     prompt = f"""
 Create a detailed prompt for a 128x128 pixel icon in {style} art style.
 The icon should depict: {description}.
@@ -64,8 +61,6 @@ that best represent this style.
     return prompt
 
 
-# Parent Agent: Icon Creator
-# Orchestrates the icon generation process using delegation
 icon_creator = Agent(
     "openai:gpt-4o",
     system_prompt=(
@@ -87,7 +82,6 @@ async def consult_style_expert(ctx: RunContext[IconRequest], prompt: str) -> str
     This demonstrates the agent delegation pattern where the parent agent
     calls a specialized delegate agent through a tool.
     """
-    # Delegate to style expert, passing usage context and dependencies
     result = await style_expert.run(
         f"Please refine this icon prompt: {prompt}",
         deps=ctx.deps,
@@ -110,8 +104,6 @@ async def generate_icon_image(ctx: RunContext[IconRequest], refined_prompt: str)
     art_style = ctx.deps.art_style
     description = ctx.deps.description
 
-    # Extract the actual prompt from the refined_prompt string if it contains extra text
-    # The refined_prompt might have "Style expert's refined prompt: " prefix
     actual_prompt = refined_prompt
     if "Style expert's refined prompt:" in refined_prompt:
         actual_prompt = refined_prompt.split("Style expert's refined prompt:")[
@@ -129,19 +121,16 @@ async def generate_icon_image(ctx: RunContext[IconRequest], refined_prompt: str)
 
     image_url = response.data[0].url
 
-    # Download the image
     print(f"  Downloading image...")
     async with httpx.AsyncClient() as http_client:
         img_response = await http_client.get(image_url)
         img_response.raise_for_status()
         image_data = img_response.content
 
-    # Resize to 128x128
     print(f"  Resizing to 128x128...")
     image = Image.open(BytesIO(image_data))
     image = image.resize((128, 128), Image.Resampling.LANCZOS)
 
-    # Create a safe filename
     safe_style = re.sub(r"[^\w\s-]", "", art_style).strip().replace(" ", "_")
     safe_desc = re.sub(r"[^\w\s-]", "", description)[:30].strip().replace(" ", "_")
     safe_timestamp = asyncio.get_event_loop().time()
@@ -149,7 +138,6 @@ async def generate_icon_image(ctx: RunContext[IconRequest], refined_prompt: str)
     output_dir = "output"
     filepath = Path.cwd() / output_dir / filename
 
-    # Save the image
     image.save(filepath, "PNG")
     print(f"  ✓ Saved to {filepath}")
 
@@ -208,7 +196,6 @@ async def main():
 
     args = parser.parse_args()
 
-    # Ensure output directory exists
     output_dir = Path.cwd() / "output"
     output_dir.mkdir(exist_ok=True)
 
@@ -217,10 +204,9 @@ async def main():
     print(f"Generating {args.count} icon(s) in '{args.style}' style...")
     print(f"Description: {args.description}\n")
 
-    # Generate the requested number of icons
     for i in range(args.count):
         if args.count > 1:
-            print(f"[{i+1}/{args.count}] Starting icon generation...")
+            print(f"[{i + 1}/{args.count}] Starting icon generation...")
 
         result = await create_icon(
             art_style=args.style,
