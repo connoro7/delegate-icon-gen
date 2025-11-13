@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Multi-agent icon generator using agent delegation pattern.
 
