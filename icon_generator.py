@@ -9,6 +9,8 @@ agent (Style Expert) to refine prompts before generating the final icon.
 
 import argparse
 import asyncio
+import json
+import logging
 import re
 from dataclasses import dataclass
 from io import BytesIO
@@ -18,6 +20,65 @@ import httpx
 from openai import AsyncOpenAI
 from PIL import Image
 from pydantic_ai import Agent, RunContext
+
+logger = logging.getLogger("icon_generator")
+
+
+def log_agent_run(agent_name: str, result) -> None:
+    """Log the full message history from an agent run."""
+    if not logger.isEnabledFor(logging.DEBUG):
+        return
+
+    logger.debug("=" * 70)
+    logger.debug("AGENT RUN: %s", agent_name)
+    logger.debug("=" * 70)
+
+    for i, msg in enumerate(result.all_messages()):
+        if msg.kind == "request":
+            logger.debug("[%d] ModelRequest", i)
+            if msg.instructions:
+                logger.debug("  [instructions] %s", msg.instructions)
+            for part in msg.parts:
+                if part.part_kind == "system-prompt":
+                    logger.debug("  [system-prompt] %s", part.content)
+                elif part.part_kind == "user-prompt":
+                    logger.debug("  [user-prompt] %s", part.content)
+                elif part.part_kind == "tool-return":
+                    logger.debug(
+                        "  [tool-return] tool=%s content=%s",
+                        part.tool_name,
+                        part.content,
+                    )
+                elif part.part_kind == "retry-prompt":
+                    logger.debug(
+                        "  [retry-prompt] tool=%s content=%s",
+                        part.tool_name,
+                        part.content,
+                    )
+                else:
+                    logger.debug("  [%s] %s", part.part_kind, part)
+        elif msg.kind == "response":
+            logger.debug(
+                "[%d] ModelResponse (model=%s)", i, msg.model_name
+            )
+            for part in msg.parts:
+                if part.part_kind == "text":
+                    logger.debug("  [text] %s", part.content)
+                elif part.part_kind == "tool-call":
+                    args_str = (
+                        json.dumps(part.args, indent=2)
+                        if isinstance(part.args, dict)
+                        else part.args
+                    )
+                    logger.debug(
+                        "  [tool-call] %s(%s)", part.tool_name, args_str
+                    )
+                else:
+                    logger.debug("  [%s] %s", part.part_kind, part)
+
+    logger.debug("FINAL OUTPUT: %s", result.output)
+    logger.debug("USAGE: %s", result.usage())
+    logger.debug("=" * 70)
 
 
 @dataclass
@@ -83,13 +144,16 @@ async def consult_style_expert(ctx: RunContext[IconRequest], prompt: str) -> str
     This demonstrates the agent delegation pattern where the parent agent
     calls a specialized delegate agent through a tool.
     """
+    user_prompt = f"Please refine this icon prompt: {prompt}"
+    logger.debug("consult_style_expert -> style_expert.run(%s)", user_prompt)
+
     result = await style_expert.run(
-        f"Please refine this icon prompt: {prompt}",
+        user_prompt,
         deps=ctx.deps,
         usage=ctx.usage,
     )
 
-    print(f"[DEBUG]{result.output}")
+    log_agent_run("style_expert (delegated)", result)
 
     return f"Style expert's refined prompt: {result.output}"
 
@@ -111,6 +175,8 @@ async def generate_icon_image(ctx: RunContext[IconRequest], refined_prompt: str)
             -1
         ].strip()
 
+    logger.debug("generate_icon_image called with refined_prompt=%s", refined_prompt)
+    logger.debug("Actual DALL-E prompt: %s", actual_prompt)
     print(f"  Generating image with DALL-E...")
     response = await client.images.generate(
         model="dall-e-3",
@@ -121,6 +187,8 @@ async def generate_icon_image(ctx: RunContext[IconRequest], refined_prompt: str)
     )
 
     image_url = response.data[0].url
+    logger.debug("DALL-E response image URL: %s", image_url)
+    logger.debug("DALL-E revised prompt: %s", getattr(response.data[0], 'revised_prompt', None))
 
     print(f"  Downloading image...")
     async with httpx.AsyncClient() as http_client:
@@ -163,10 +231,15 @@ async def create_icon(
         art_style=art_style, description=description, openai_client=openai_client
     )
 
+    user_prompt = f"Create a {art_style} style icon: {description}"
+    logger.debug("create_icon -> icon_creator.run(%s)", user_prompt)
+
     result = await icon_creator.run(
-        f"Create a {art_style} style icon: {description}",
+        user_prompt,
         deps=deps,
     )
+
+    log_agent_run("icon_creator", result)
 
     return result.output
 
@@ -194,8 +267,19 @@ async def main():
         default=1,
         help="Number of icons to generate (default: 1)",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging of all agent prompts, tool calls, and responses",
+    )
 
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.WARNING,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
 
     output_dir = Path.cwd() / "output"
     output_dir.mkdir(exist_ok=True)
