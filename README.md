@@ -27,6 +27,12 @@ This application uses two agents in a delegation pattern:
 python icon_generator.py --style "minimalist" --description "a dancing baby shark" --count 3
 ```
 
+Use `-v` / `--verbose` to log every system prompt, user prompt, tool call, and model response exchanged during the run:
+
+```bash
+python icon_generator.py --style "pixel art" --description "a cat" -v
+```
+
 ## Example Styles
 
 - **minimalist**: Clean, simple designs with essential elements
